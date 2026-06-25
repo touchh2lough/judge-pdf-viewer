@@ -1058,6 +1058,51 @@ mark {
   flex-wrap: wrap;
 }
 
+.file-upload-field {
+  display: grid;
+  gap: 8px;
+  flex: 1 1 220px;
+  min-width: min(100%, 220px);
+  padding: 12px;
+  border: 1px solid #bfdbfe;
+  border-radius: 14px;
+  background: var(--blue-soft);
+}
+
+.file-upload-field.compact {
+  flex-basis: 260px;
+}
+
+.file-upload-field span {
+  color: var(--blue-dark);
+  font-size: 14px;
+  font-weight: 800;
+  line-height: 1.35;
+}
+
+.file-upload-field input[type="file"] {
+  width: 100%;
+  min-height: 44px;
+  color: var(--text);
+  font-size: 15px;
+}
+
+.file-upload-field input[type="file"]::file-selector-button {
+  min-height: 44px;
+  margin-right: 10px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 12px;
+  background: var(--blue-dark);
+  color: #ffffff;
+  font: inherit;
+  font-weight: 800;
+}
+
+.file-upload-field input[type="file"]:disabled {
+  opacity: 0.62;
+}
+
 .document-actions .button-link,
 .document-actions button {
   min-height: 44px;

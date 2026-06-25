@@ -419,7 +419,7 @@ async function loadClassificationData() {
       applyClassificationData(override);
       return;
     }
-    const response = await fetch("data/classifications.json?v=core4", { cache: "no-cache" });
+    const response = await fetch("data/classifications.json?v=core5", { cache: "no-cache" });
     if (!response.ok) throw new Error(`classification json: ${response.status}`);
     applyClassificationData(await response.json());
   } catch (error) {
@@ -1094,9 +1094,9 @@ function renderDocuments() {
       </div>
       <p class="muted-text">入口タイルや関連項目はJSONで更新できます。PDF原文とは別の設定データです。</p>
       <div class="document-actions">
-        <label class="button-link">
-          分類JSONをインポート
-          <input class="visually-hidden" type="file" accept="application/json,.json" data-classification-import>
+        <label class="file-upload-field compact">
+          <span>分類JSONをインポート</span>
+          <input type="file" accept="application/json,.json" data-classification-import>
         </label>
         <button type="button" data-reset-classification>標準に戻す</button>
       </div>
@@ -1140,9 +1140,9 @@ function documentManagerHtml(setupOnly) {
         <p class="muted-text">各自で用意した公式PDFを登録してください。</p>
       `}
       <div class="document-actions">
-        <label class="button-link primary-button">
-          ${registration ? "差し替え" : "PDFを登録"}
-          <input class="visually-hidden" type="file" accept="application/pdf,.pdf" data-pdf-upload="${doc.id}">
+        <label class="file-upload-field">
+          <span>${registration ? "PDFを差し替え" : "PDFを登録"}</span>
+          <input type="file" accept="application/pdf,.pdf" data-pdf-upload="${doc.id}">
         </label>
         ${registration ? `<button type="button" data-remove-pdf="${doc.id}">削除</button>` : ""}
       </div>
@@ -2006,13 +2006,21 @@ async function init() {
   document.addEventListener("change", (event) => {
     if (event.target.dataset.pdfUpload) {
       const file = event.target.files?.[0];
-      registerPdf(event.target.dataset.pdfUpload, file);
-      event.target.value = "";
+      event.target.disabled = true;
+      registerPdf(event.target.dataset.pdfUpload, file)
+        .finally(() => {
+          event.target.disabled = false;
+          event.target.value = "";
+        });
     }
     if (event.target.dataset.classificationImport !== undefined) {
       const file = event.target.files?.[0];
-      importClassificationFile(file);
-      event.target.value = "";
+      event.target.disabled = true;
+      importClassificationFile(file)
+        .finally(() => {
+          event.target.disabled = false;
+          event.target.value = "";
+        });
     }
   });
   els.searchButton.addEventListener("click", runSearch);

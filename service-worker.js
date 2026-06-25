@@ -1,4 +1,4 @@
-const CACHE_NAME = "judge-source-app-core4";
+const CACHE_NAME = "judge-source-app-core5";
 const CORE_ASSETS = [
   "./",
   "./index.html",
@@ -8,20 +8,24 @@ const CORE_ASSETS = [
   "./css/style.css?v=core2",
   "./css/style.css?v=core3",
   "./css/style.css?v=core4",
+  "./css/style.css?v=core5",
   "./js/app.js",
   "./js/app.js?v=core1",
   "./js/app.js?v=core2",
   "./js/app.js?v=core3",
   "./js/app.js?v=core4",
+  "./js/app.js?v=core5",
   "./js/documents.js",
   "./js/documents.js?v=core1",
   "./js/documents.js?v=core2",
   "./js/documents.js?v=core3",
   "./js/documents.js?v=core4",
+  "./js/documents.js?v=core5",
   "./data/classifications.json",
   "./data/classifications.json?v=core2",
   "./data/classifications.json?v=core3",
   "./data/classifications.json?v=core4",
+  "./data/classifications.json?v=core5",
   "./vendor/pdfjs/pdf.min.mjs",
   "./vendor/pdfjs/pdf.worker.min.mjs"
 ];
