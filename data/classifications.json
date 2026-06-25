@@ -1,0 +1,45 @@
+{
+  "version": "2026-06-core1",
+  "classificationGroups": {
+    "playErrors": [
+      { "id": "play-error-1-1", "number": "1-1", "title": "余分なカードを見た", "query": "余分なカードを見た", "description": "山札・サイド・手札など、本来見るべきでないカードを見た可能性がある場合に確認する項目です。", "targetDocuments": ["penalty-guideline", "ruling-case"] },
+      { "id": "play-error-1-2", "number": "1-2", "title": "余分なカードを手札に加えた", "query": "余分なカードを手札に加えた", "description": "本来加える枚数より多くカードを手札に加えた、または加えたカードが混ざった可能性がある場合に確認する項目です。", "targetDocuments": ["penalty-guideline", "ruling-case"] },
+      { "id": "play-error-1-3", "number": "1-3", "title": "非公開のカードを混ぜてしまった", "query": "非公開のカードを混ぜてしまった", "description": "非公開領域のカードが混ざり、どのカードか区別できない可能性がある場合に確認する項目です。", "targetDocuments": ["penalty-guideline", "ruling-case"] },
+      { "id": "play-error-1-4", "number": "1-4", "title": "本来できない行動", "query": "本来できない行動", "description": "ルール上できない行動を行った可能性がある場合に確認する項目です。", "targetDocuments": ["penalty-guideline", "ruling-case"] },
+      { "id": "play-error-1-5", "number": "1-5", "title": "処理忘れ", "query": "処理忘れ", "description": "本来行うべき処理を忘れた、または処理順に不備があった可能性がある場合に確認する項目です。", "targetDocuments": ["penalty-guideline", "ruling-case"] },
+      { "id": "play-error-1-6", "number": "1-6", "title": "ダメージの誤り", "query": "ダメージの誤り", "description": "ダメージ計算、ダメカン、HPに関する処理に誤りがあった可能性がある場合に確認する項目です。", "targetDocuments": ["penalty-guideline", "ruling-case"] },
+      { "id": "play-error-1-7", "number": "1-7", "title": "対戦準備の誤り", "query": "対戦準備の誤り", "description": "対戦開始前の準備、サイド、手札、先攻後攻などに誤りがあった可能性がある場合に確認する項目です。", "targetDocuments": ["penalty-guideline", "ruling-case"] },
+      { "id": "play-error-1-8", "number": "1-8", "title": "不十分なシャッフル", "query": "不十分なシャッフル", "description": "山札が十分に無作為化されていない可能性がある場合に確認する項目です。", "targetDocuments": ["penalty-guideline", "ruling-case"] },
+      { "id": "play-error-1-9", "number": "1-9", "title": "カードを落とした", "query": "カードを落とした", "description": "カードを落とした、見えてしまった、状態が変わった可能性がある場合に確認する項目です。", "targetDocuments": ["penalty-guideline", "ruling-case"] },
+      { "id": "play-error-1-10", "number": "1-10", "title": "遅いプレイ", "query": "遅いプレイ", "description": "プレイ速度や判断時間が適切か確認したい場合に確認する項目です。", "targetDocuments": ["penalty-guideline", "ruling-case"] },
+      { "id": "play-error-1-11", "number": "1-11", "title": "対戦相手のプレイエラーの見逃し", "query": "対戦相手のプレイエラーの見逃し", "description": "対戦相手の誤りに気づけたか、見逃しに関係する状況を確認する項目です。", "targetDocuments": ["penalty-guideline", "ruling-case"] }
+    ],
+    "eventErrors": [
+      { "id": "event-error-2-1", "number": "2-1", "title": "区別がつくカード / デッキシールド", "query": "区別がつくカード デッキシールド", "description": "カードやデッキシールドの状態によって区別がつく可能性がある場合に確認する項目です。", "targetDocuments": ["penalty-guideline", "ruling-case"] },
+      { "id": "event-error-2-2", "number": "2-2", "title": "デッキ / デッキリストの問題", "query": "デッキ デッキリスト", "description": "デッキ内容やデッキリストに関する不備を確認する項目です。", "targetDocuments": ["penalty-guideline", "ruling-case"] },
+      { "id": "event-error-2-3", "number": "2-3", "title": "遅刻", "query": "遅刻", "description": "対戦開始や集合に遅れた場合の資料箇所を確認する項目です。", "targetDocuments": ["penalty-guideline", "floor-rule"] },
+      { "id": "event-error-2-4", "number": "2-4", "title": "アドバイス行為", "query": "アドバイス行為", "description": "対戦中の助言や外部からの関与が疑われる場合に確認する項目です。", "targetDocuments": ["penalty-guideline", "floor-rule", "ruling-case"] }
+    ],
+    "conductErrors": [
+      { "id": "conduct-error-3", "number": "3", "title": "悪質な行為", "query": "悪質な行為", "description": "故意性やイベント運営上の重大な問題が疑われる場合に、該当する資料箇所を確認するための入口です。", "targetDocuments": ["penalty-guideline", "floor-rule"] }
+    ]
+  },
+  "entryItems": [
+    { "id": "entry-extra-to-hand", "group": "play", "label": "山札・サイドを多く手札に加えた", "primaryId": "play-error-1-2", "relatedIds": ["play-error-1-3", "play-error-1-5"] },
+    { "id": "entry-extra-look", "group": "play", "label": "本来見るべきでないカードを見た", "primaryId": "play-error-1-1", "relatedIds": ["play-error-1-9"] },
+    { "id": "entry-mixed-hidden", "group": "play", "label": "カードを混ぜてしまった", "primaryId": "play-error-1-3", "relatedIds": ["play-error-1-2", "play-error-1-4"] },
+    { "id": "entry-illegal-action", "group": "play", "label": "本来できない行動をした", "primaryId": "play-error-1-4", "relatedIds": ["play-error-1-5", "play-error-1-11"] },
+    { "id": "entry-missed-action", "group": "play", "label": "やるべき処理を忘れた", "primaryId": "play-error-1-5", "relatedIds": ["play-error-1-4", "play-error-1-11"] },
+    { "id": "entry-damage-error", "group": "play", "label": "ダメージ計算を間違えた", "primaryId": "play-error-1-6", "relatedIds": ["play-error-1-5", "play-error-1-11"] },
+    { "id": "entry-setup-error", "group": "play", "label": "対戦準備を間違えた", "primaryId": "play-error-1-7", "relatedIds": ["play-error-1-5"] },
+    { "id": "entry-shuffle-error", "group": "play", "label": "シャッフルが不十分だった", "primaryId": "play-error-1-8", "relatedIds": [] },
+    { "id": "entry-dropped-card", "group": "play", "label": "カードを落とした", "primaryId": "play-error-1-9", "relatedIds": ["play-error-1-1"] },
+    { "id": "entry-slow-play", "group": "play", "label": "プレイが遅い", "primaryId": "play-error-1-10", "relatedIds": [] },
+    { "id": "entry-missed-opponent-error", "group": "play", "label": "相手のミスを見逃した", "primaryId": "play-error-1-11", "relatedIds": ["play-error-1-4", "play-error-1-5"] },
+    { "id": "entry-marked-card", "group": "event", "label": "デッキ・シールドに問題がある", "primaryId": "event-error-2-1", "relatedIds": [] },
+    { "id": "entry-deck-list", "group": "event", "label": "デッキリストに問題がある", "primaryId": "event-error-2-2", "relatedIds": [] },
+    { "id": "entry-late", "group": "event", "label": "遅刻", "primaryId": "event-error-2-3", "relatedIds": [] },
+    { "id": "entry-advice", "group": "event", "label": "アドバイス行為", "primaryId": "event-error-2-4", "relatedIds": [] },
+    { "id": "entry-conduct", "group": "conduct", "label": "悪質な行為", "primaryId": "conduct-error-3", "relatedIds": [] }
+  ]
+}

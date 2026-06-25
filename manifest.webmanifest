@@ -1,0 +1,10 @@
+{
+  "name": "ジャッジ原文検索",
+  "short_name": "原文検索",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f4f7f8",
+  "theme_color": "#006d77",
+  "description": "ポケモンカードゲームの公式PDF原文を確認するための検索ツールです。"
+}

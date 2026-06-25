@@ -1,0 +1,4 @@
+assets/pdfs/*.pdf
+*.log
+.DS_Store
+Thumbs.db

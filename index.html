@@ -1,0 +1,206 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>ジャッジ用PDFビューアー</title>
+    <meta name="theme-color" content="#006d77">
+    <link rel="manifest" href="manifest.webmanifest">
+    <link rel="stylesheet" href="css/style.css?v=core4">
+  </head>
+  <body>
+    <header class="app-header">
+      <div>
+        <p class="kicker">公式資料リファレンス</p>
+        <h1>ジャッジ用PDFビューアー</h1>
+        <p class="header-note">本アプリは裁定を自動判断するものではありません。表示された項目は資料確認の入口です。</p>
+      </div>
+      <div class="header-actions">
+        <span id="offline-status" class="status-pill">確認中</span>
+        <button id="prepare-offline" class="icon-button" type="button">事前保存</button>
+        <button id="refresh-index" class="icon-button" type="button" title="PDFを再読み込み">再読込</button>
+      </div>
+    </header>
+
+    <section id="setup-screen" class="setup-screen" hidden>
+      <div class="setup-card">
+        <div class="section-heading">
+          <p class="kicker">初回設定</p>
+          <h2>公式PDFを登録してください</h2>
+        </div>
+        <p class="setup-copy">このアプリは公式PDFを登録して使います。PDFを各自で用意してから登録してください。</p>
+        <p class="setup-copy muted-text">必須資料が登録されるまで、入口タイルからPDFを開けません。</p>
+        <div id="setup-documents" class="document-list"></div>
+      </div>
+    </section>
+
+    <main class="app workspace">
+      <section class="control-column" aria-label="検索操作">
+        <section id="classification-section" class="classification-section" aria-label="起きた事象から探す">
+          <div class="section-heading">
+            <p class="kicker">起きた事象に近い入口を選ぶ</p>
+            <h2>プレイエラー 1-1〜1-11</h2>
+          </div>
+          <div id="play-error-cards" class="classification-grid"></div>
+        </section>
+
+        <section id="entry-detail" class="entry-detail" aria-live="polite"></section>
+
+        <section class="classification-section" aria-label="2系統・3系統">
+          <div class="section-heading compact">
+            <p class="kicker">その他の確認入口</p>
+            <h2>2系統・3系統</h2>
+          </div>
+          <div id="event-error-cards" class="classification-grid secondary"></div>
+        </section>
+
+        <section id="detected-section" class="classification-section detected-section" aria-label="PDFから検出" hidden>
+          <div class="section-heading compact">
+            <p class="kicker">PDFから検出</p>
+            <h2>未登録項目</h2>
+          </div>
+          <p class="detected-help">登録PDFに、標準データへ未登録の項目が見つかった場合だけ表示します。</p>
+          <div id="detected-cards" class="classification-grid secondary"></div>
+        </section>
+
+        <section class="status-line" aria-live="polite">
+          <span id="index-status">PDF読み込み待機中</span>
+        </section>
+
+        <nav class="tabs" aria-label="画面切り替え">
+          <button class="tab is-active" data-tab="results" type="button">検索結果</button>
+          <button class="tab" data-tab="history" type="button">履歴</button>
+          <button class="tab" data-tab="documents" type="button">資料</button>
+        </nav>
+
+        <section id="prep-view" class="view">
+          <div class="prep-panel">
+            <div class="prep-header">
+              <div>
+                <p class="kicker">イベント前チェック</p>
+                <h2 id="prep-title">準備状況</h2>
+              </div>
+              <button id="prep-run" class="primary-button" type="button">今すぐ確認</button>
+            </div>
+            <div id="prep-checks" class="prep-checks"></div>
+          </div>
+        </section>
+
+        <section id="results-view" class="view is-active">
+          <div id="results" class="result-list"></div>
+        </section>
+
+        <section id="favorites-view" class="view">
+          <div class="field-header">
+            <div>
+              <p class="kicker">すぐ戻る</p>
+              <h2>お気に入り</h2>
+            </div>
+          </div>
+          <div id="favorites" class="result-list"></div>
+        </section>
+
+        <section id="history-view" class="view">
+          <div class="history-panel">
+            <div class="section-heading compact">
+              <p class="kicker">振り返り</p>
+              <h2>閲覧履歴</h2>
+            </div>
+            <div id="history-items" class="history-list">
+              <div class="empty-state">PDFを開くと、ここに確認履歴が残ります。</div>
+            </div>
+          </div>
+        </section>
+
+        <section id="documents-view" class="view">
+          <div id="documents" class="document-list"></div>
+        </section>
+
+        <section id="search-section" class="search-panel search-card" aria-label="詳細検索">
+          <div class="section-heading">
+            <p class="kicker">詳細検索</p>
+            <h2>資料内検索</h2>
+          </div>
+          <div class="search-row">
+            <label class="search-box">
+              <span>検索語</span>
+              <input id="search-input" type="search" autocomplete="off" placeholder="例：余分なカード、公開情報、遅いプレイ">
+            </label>
+            <button id="search-button" class="primary-button" type="button">検索</button>
+          </div>
+          <label class="filter-box visually-hidden">
+            <span>検索対象</span>
+            <select id="document-filter"></select>
+          </label>
+          <div>
+            <p class="filter-label">資料フィルター</p>
+            <div id="filter-chips" class="filter-chips" aria-label="資料フィルター"></div>
+          </div>
+        </section>
+      </section>
+
+      <aside class="source-viewer" aria-label="確認用PDF">
+        <div class="source-viewer-header">
+          <div>
+            <p class="kicker">PDF原文</p>
+            <h2 id="viewer-title">検索結果からページを選択</h2>
+            <p id="viewer-page-label" class="viewer-meta">原本ページをここに表示します</p>
+          </div>
+          <button id="present-pdf" class="primary-button" type="button" disabled>PDFを開く</button>
+        </div>
+        <div class="viewer-toolbar">
+          <button id="viewer-prev-page" type="button" disabled>前ページ</button>
+          <button id="viewer-next-page" type="button" disabled>次ページ</button>
+        </div>
+        <div class="canvas-shell">
+          <canvas id="viewer-canvas"></canvas>
+          <div id="viewer-empty" class="viewer-empty">
+            ショートカットや検索結果から「確認画面に表示」を押すと、公式PDFの該当ページをそのまま見せられます。
+          </div>
+        </div>
+      </aside>
+    </main>
+
+    <dialog id="pdf-dialog">
+      <div class="dialog-header">
+        <div>
+          <p class="kicker">PDF原文</p>
+          <strong id="pdf-title"></strong>
+          <span id="pdf-page-label"></span>
+        </div>
+        <button id="close-pdf" class="icon-button" type="button">戻る</button>
+      </div>
+      <div class="pdf-toolbar">
+        <button id="prev-page" type="button">前ページ</button>
+        <a id="open-native-pdf" class="button-link" href="#" target="_blank" rel="noopener">原文を開く</a>
+        <button id="dialog-case-button" class="dialog-case-button" type="button" hidden>裁定事例集を開く</button>
+        <button id="toggle-markers" type="button" aria-pressed="false">マーカー表示</button>
+        <button id="next-page" type="button">次ページ</button>
+      </div>
+      <div id="pdf-context" class="pdf-context"></div>
+      <div class="pdf-match-toolbar">
+        <button id="prev-match" type="button" disabled>前の一致へ</button>
+        <span id="match-status">該当箇所を表示</span>
+        <button id="next-match" type="button" disabled>次の一致へ</button>
+      </div>
+      <div id="pdf-page-wrap" class="pdf-page-wrap">
+        <canvas id="pdf-canvas"></canvas>
+        <div id="pdf-text-layer" class="pdf-text-layer" aria-hidden="true"></div>
+      </div>
+    </dialog>
+
+    <button id="floating-case-button" class="floating-case-button" type="button" hidden>
+      裁定事例集を開く
+    </button>
+
+    <nav class="bottom-nav" aria-label="下部ナビゲーション">
+      <button type="button" data-nav-section="classification-section">事象</button>
+      <button type="button" data-nav-section="search-section">検索</button>
+      <button type="button" data-nav-tab="history">履歴</button>
+      <button type="button" data-nav-tab="documents">資料</button>
+    </nav>
+
+    <script src="js/documents.js?v=core4"></script>
+    <script src="js/app.js?v=core4" type="module"></script>
+  </body>
+</html>
