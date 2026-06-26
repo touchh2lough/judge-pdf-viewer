@@ -1,6 +1,6 @@
 import * as pdfjsLib from "../vendor/pdfjs/pdf.min.mjs";
 
-pdfjsLib.GlobalWorkerOptions.workerSrc = "../vendor/pdfjs/pdf.worker.min.mjs";
+pdfjsLib.GlobalWorkerOptions.workerSrc = new URL("../vendor/pdfjs/pdf.worker.min.mjs", import.meta.url).toString();
 
 const documents = window.JUDGE_DOCUMENTS;
 const filters = window.JUDGE_FILTERS;
@@ -419,7 +419,7 @@ async function loadClassificationData() {
       applyClassificationData(override);
       return;
     }
-    const response = await fetch("data/classifications.json?v=core5", { cache: "no-cache" });
+    const response = await fetch("data/classifications.json?v=core6", { cache: "no-cache" });
     if (!response.ok) throw new Error(`classification json: ${response.status}`);
     applyClassificationData(await response.json());
   } catch (error) {
@@ -558,6 +558,22 @@ function pdfBytesFromBuffer(buffer) {
   return new Uint8Array(buffer.slice(0));
 }
 
+async function loadPdfDocument(source) {
+  const baseSource = { ...source };
+  const originalData = baseSource.data ? new Uint8Array(baseSource.data) : null;
+  const firstSource = originalData ? { ...baseSource, data: new Uint8Array(originalData) } : baseSource;
+
+  try {
+    return await pdfjsLib.getDocument(firstSource).promise;
+  } catch (error) {
+    console.warn("PDF worker loading failed. Retrying without worker.", error);
+    const retrySource = originalData
+      ? { ...baseSource, data: new Uint8Array(originalData), disableWorker: true }
+      : { ...baseSource, disableWorker: true };
+    return pdfjsLib.getDocument(retrySource).promise;
+  }
+}
+
 async function readPdfTextSample(pdf) {
   const pageLimit = Math.min(pdf.numPages, 5);
   const parts = [];
@@ -590,7 +606,7 @@ function validatePdfSample(doc, file, textSample, pageCount) {
 
 async function inspectPdfFile(doc, file) {
   const buffer = await file.arrayBuffer();
-  const pdf = await pdfjsLib.getDocument({ data: pdfBytesFromBuffer(buffer) }).promise;
+  const pdf = await loadPdfDocument({ data: pdfBytesFromBuffer(buffer) });
   const textSample = await readPdfTextSample(pdf);
   const validation = validatePdfSample(doc, file, textSample, pdf.numPages);
   return {
@@ -644,7 +660,8 @@ async function registerPdf(documentId, file, force = false) {
   } catch (error) {
     console.error(error);
     els.indexStatus.textContent = "PDFを登録できませんでした";
-    window.alert("PDFを登録できませんでした。ファイルを確認してください。");
+    const detail = error?.message || error?.name || String(error);
+    window.alert(`PDFを登録できませんでした。\n${detail}`);
   }
 }
 
@@ -1201,7 +1218,7 @@ function renderPrepChecks() {
 }
 
 async function extractDocument(doc) {
-  const pdf = await pdfjsLib.getDocument(await getDocumentPdfSource(doc)).promise;
+  const pdf = await loadPdfDocument(await getDocumentPdfSource(doc));
   const pages = [];
 
   for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber += 1) {
@@ -1518,7 +1535,7 @@ async function setActivePdf(documentId, pageNumber, endPage = null) {
   const doc = getDocument(documentId);
   if (!doc) return;
   activeDoc = doc;
-  activePdf = await pdfjsLib.getDocument(await getDocumentPdfSource(doc)).promise;
+  activePdf = await loadPdfDocument(await getDocumentPdfSource(doc));
   activePage = Number(pageNumber);
   activeUnitEndPage = endPage ? Math.max(activePage, Number(endPage)) : null;
   els.pdfTitle.textContent = doc.title;
