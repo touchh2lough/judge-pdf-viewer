@@ -6,7 +6,7 @@
     <title>ジャッジ用PDFビューアー</title>
     <meta name="theme-color" content="#006d77">
     <link rel="manifest" href="manifest.webmanifest">
-    <link rel="stylesheet" href="css/style.css?v=core6">
+    <link rel="stylesheet" href="css/style.css?v=core7">
   </head>
   <body>
     <header class="app-header">
@@ -63,6 +63,14 @@
           <div id="detected-cards" class="classification-grid secondary"></div>
         </section>
 
+        <section id="quick-recent-section" class="quick-recent-section" aria-label="最近見た原文">
+          <div class="section-heading compact">
+            <p class="kicker">すぐ戻る</p>
+            <h2>最近見た原文</h2>
+          </div>
+          <div id="quick-recent" class="quick-recent-list"></div>
+        </section>
+
         <section class="status-line" aria-live="polite">
           <span id="index-status">PDF読み込み待機中</span>
         </section>
@@ -70,6 +78,8 @@
         <nav class="tabs" aria-label="画面切り替え">
           <button class="tab is-active" data-tab="results" type="button">検索結果</button>
           <button class="tab" data-tab="history" type="button">履歴</button>
+          <button class="tab" data-tab="favorites" type="button">お気に入り</button>
+          <button class="tab" data-tab="prep" type="button">準備状況</button>
           <button class="tab" data-tab="documents" type="button">資料</button>
         </nav>
 
@@ -197,10 +207,11 @@
       <button type="button" data-nav-section="classification-section">事象</button>
       <button type="button" data-nav-section="search-section">検索</button>
       <button type="button" data-nav-tab="history">履歴</button>
+      <button type="button" data-nav-tab="favorites">お気に入り</button>
       <button type="button" data-nav-tab="documents">資料</button>
     </nav>
 
-    <script src="js/documents.js?v=core6"></script>
-    <script src="js/app.js?v=core6" type="module"></script>
+    <script src="js/documents.js?v=core7"></script>
+    <script src="js/app.js?v=core7" type="module"></script>
   </body>
 </html>

@@ -305,6 +305,7 @@ const els = {
   results: document.querySelector("#results"),
   favorites: document.querySelector("#favorites"),
   historyItems: document.querySelector("#history-items"),
+  quickRecent: document.querySelector("#quick-recent"),
   documents: document.querySelector("#documents"),
   tabs: document.querySelectorAll(".tab"),
   views: {
@@ -419,7 +420,7 @@ async function loadClassificationData() {
       applyClassificationData(override);
       return;
     }
-    const response = await fetch("data/classifications.json?v=core6", { cache: "no-cache" });
+    const response = await fetch("data/classifications.json?v=core7", { cache: "no-cache" });
     if (!response.ok) throw new Error(`classification json: ${response.status}`);
     applyClassificationData(await response.json());
   } catch (error) {
@@ -889,7 +890,7 @@ function renderPdfContext() {
       <strong>${escapeHtml(item.title)}</strong>
     </div>
     ${related.length > 0 ? `
-      <details class="pdf-related" ${isCompactViewport() ? "" : "open"}>
+      <details class="pdf-related" open>
         <summary>近い原文</summary>
         <div class="pdf-related-links">
           ${related.map((relatedItem) => `
@@ -1590,6 +1591,7 @@ function addHistoryItem(doc, page) {
 function renderHistoryItems() {
   if (!els.historyItems) return;
   const history = loadJson(storageKeys.history, []);
+  renderQuickRecent(history);
   if (history.length === 0) {
     els.historyItems.innerHTML = '<div class="empty-state">PDFを開くと、ここに確認履歴が残ります。</div>';
     return;
@@ -1615,6 +1617,26 @@ function renderHistoryItems() {
       </label>
     </article>
   `;
+  }).join("");
+}
+
+function renderQuickRecent(history = loadJson(storageKeys.history, [])) {
+  if (!els.quickRecent) return;
+  const recent = history.slice(0, 5);
+  if (recent.length === 0) {
+    els.quickRecent.innerHTML = '<p class="quick-recent-empty">原文を開くと、ここからすぐ戻れます。</p>';
+    return;
+  }
+  els.quickRecent.innerHTML = recent.map((item) => {
+    const title = item.itemNumber
+      ? `${item.itemNumber} ${item.itemTitle}`
+      : item.documentTitle;
+    return `
+      <button class="quick-recent-button" type="button" data-history-open="${item.id}">
+        <span class="quick-recent-title">${escapeHtml(title)}</span>
+        <span class="quick-recent-meta">${escapeHtml(item.documentTitle)}・${item.page}p</span>
+      </button>
+    `;
   }).join("");
 }
 
