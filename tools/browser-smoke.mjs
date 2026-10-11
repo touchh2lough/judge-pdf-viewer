@@ -112,6 +112,7 @@ try {
   console.log("PASS multiple newsletter issues, content deduplication even after rename");
   await page.reload();
   await page.locator("[data-news-files]").waitFor({ state: "attached" });
+  await page.locator('[data-nav-tab="results"]').click();
   await page.locator("#search-input").fill("SHUFFLE");
   await page.locator('[data-filter-chip="judge-news"]').click();
   await page.locator("#search-button").click();
@@ -145,6 +146,12 @@ try {
   console.log("PASS mobile layout without horizontal overflow");
   await page.locator('[data-nav-tab="home"]').click();
   await page.evaluate(() => scrollTo(0, 0));
+  assert.equal(await page.locator('#search-section').isVisible(), false);
+  const tiles = await page.locator('#play-error-cards [data-entry-id]').evaluateAll(items => items.slice(0, 3).map(item => {
+    const rect = item.getBoundingClientRect(); return { top: rect.top, width: rect.width, height: rect.height };
+  }));
+  assert.ok(tiles.every(tile => Math.abs(tile.top - tiles[0].top) < 1 && Math.abs(tile.width - tile.height) < 1));
+  assert.ok(tiles[0].top < 180);
   await page.screenshot({ path: path.join(root, '.artifacts/home-mobile.png'), fullPage: true });
   assert.equal(await page.locator('#results-view').isVisible(), false);
   await page.locator('#play-error-cards [data-entry-id]').first().click();
@@ -168,8 +175,24 @@ try {
     await page.setViewportSize({ width, height: 900 });
     await page.locator('[data-nav-tab="home"]').click();
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+    assert.equal(await page.locator('#search-input').isVisible(), false);
+    await page.locator('[data-nav-tab="results"]').click();
+    assert.equal(await page.locator('#search-input').count(), 1);
     const searchBounds = await page.locator('#search-input').boundingBox();
     assert.ok(searchBounds.width > width * 0.5 || width > 1080);
+    const headerBounds = await page.locator('.app-header').boundingBox();
+    assert.ok(searchBounds.y >= headerBounds.y + headerBounds.height);
+    assert.equal(await page.locator('#search-input').evaluate(input => document.activeElement === input), false);
+    await page.locator('#search-input').click();
+    await page.locator('#search-input').fill('SHUFFLE');
+    await page.locator('#search-button').click();
+    assert.equal(await page.locator('#results .result-card').count(), 2);
+    await page.evaluate(() => scrollTo(0, 300));
+    assert.equal(await page.locator('.app-header').evaluate(header => getComputedStyle(header).position), 'static');
+    if (width === 320) {
+      await page.evaluate(() => scrollTo(0, 0));
+      await page.screenshot({ path: path.join(root, '.artifacts/search-mobile.png') });
+    }
   }
   await page.locator('[data-nav-tab="prep"]').click();
   await page.locator("#prepare-offline").click();
@@ -177,6 +200,7 @@ try {
   await context.setOffline(true);
   await page.reload();
   await page.locator("[data-news-files]").waitFor({ state: "attached" });
+  await page.locator('[data-nav-tab="results"]').click();
   await page.locator("#search-input").fill("SHUFFLE");
   await page.locator('[data-filter-chip="judge-news"]').click();
   await page.locator("#search-button").click();
@@ -222,6 +246,7 @@ try {
   }, Array.from(first));
   await legacyPage.goto("http://127.0.0.1:8793/");
   await legacyPage.locator("[data-news-files]").waitFor({ state: "attached" });
+  await legacyPage.locator('[data-nav-tab="results"]').click();
   await legacyPage.locator("#search-input").fill("SHUFFLE");
   await legacyPage.locator("#search-button").click();
   assert.equal(await legacyPage.locator("#results .result-card").count(), 1);

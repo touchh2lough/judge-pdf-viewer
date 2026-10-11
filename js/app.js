@@ -426,7 +426,7 @@ async function loadClassificationData() {
       applyClassificationData(override);
       return;
     }
-    const response = await fetch("data/classifications.json?v=core9", { cache: "no-cache" });
+    const response = await fetch("data/classifications.json?v=core10", { cache: "no-cache" });
     if (!response.ok) throw new Error(`classification json: ${response.status}`);
     applyClassificationData(await response.json());
   } catch (error) {
@@ -2077,7 +2077,7 @@ function handleDelegatedClick(event) {
 
   if (target.dataset.navTab) {
     activateTab(target.dataset.navTab);
-    if (target.dataset.navTab === "results") els.searchInput.focus({ preventScroll: true });
+    if (target.dataset.navTab === "results") window.scrollTo(0, 0);
   }
 
   if (target.dataset.navSection) {

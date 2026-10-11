@@ -6,7 +6,7 @@
     <title>ジャッジ用PDFビューアー</title>
     <meta name="theme-color" content="#006d77">
     <link rel="manifest" href="manifest.webmanifest">
-    <link rel="stylesheet" href="css/style.css?v=core9">
+    <link rel="stylesheet" href="css/style.css?v=core10">
   </head>
   <body data-route="home">
     <header class="app-header">
@@ -23,35 +23,9 @@
 
     <main class="app workspace">
       <section class="control-column" aria-label="検索操作">
-        <section id="search-section" class="search-panel search-card" aria-label="詳細検索">
-          <div class="section-heading">
 
-            <h2>資料を検索</h2>
-          </div>
-          <div class="search-row">
-            <label class="search-box">
-              <span>検索語</span>
-              <input id="search-input" type="search" autocomplete="off" placeholder="例：余分なカード、公開情報、遅いプレイ">
-            </label>
-            <button id="search-button" class="primary-button" type="button">検索</button>
-          </div>
-          <label class="filter-box visually-hidden">
-            <span>検索対象</span>
-            <select id="document-filter"></select>
-          </label>
-          <div>
-            <p class="filter-label">資料フィルター</p>
-            <div id="filter-chips" class="filter-chips" aria-label="資料フィルター"></div>
-          </div>
-        </section>
 
-        <section id="quick-recent-section" class="quick-recent-section" aria-label="最近見た原文">
-          <div class="section-heading compact">
-            <p class="kicker">すぐ戻る</p>
-            <h2>最近見た原文</h2>
-          </div>
-          <div id="quick-recent" class="quick-recent-list"></div>
-        </section>
+
 
         <section id="classification-section" class="classification-section" aria-label="起きた事象から探す">
           <div class="section-heading">
@@ -78,6 +52,14 @@
           </div>
           <p class="detected-help">登録PDFに、標準データへ未登録の項目が見つかった場合だけ表示します。</p>
           <div id="detected-cards" class="classification-grid secondary"></div>
+        </section>
+
+        <section id="quick-recent-section" class="quick-recent-section" aria-label="最近見た原文">
+          <div class="section-heading compact">
+            <p class="kicker">すぐ戻る</p>
+            <h2>最近見た原文</h2>
+          </div>
+          <div id="quick-recent" class="quick-recent-list"></div>
         </section>
 
         <section class="status-line" aria-live="polite">
@@ -108,6 +90,27 @@
         </section>
 
         <section id="results-view" class="view is-active">
+        <section id="search-section" class="search-panel search-card" aria-label="詳細検索">
+          <div class="section-heading">
+
+            <h2>資料を検索</h2>
+          </div>
+          <div class="search-row">
+            <label class="search-box">
+              <span>検索語</span>
+              <input id="search-input" type="search" autocomplete="off" placeholder="例：余分なカード、公開情報、遅いプレイ">
+            </label>
+            <button id="search-button" class="primary-button" type="button">検索</button>
+          </div>
+          <label class="filter-box visually-hidden">
+            <span>検索対象</span>
+            <select id="document-filter"></select>
+          </label>
+          <div>
+            <p class="filter-label">資料フィルター</p>
+            <div id="filter-chips" class="filter-chips" aria-label="資料フィルター"></div>
+          </div>
+        </section>
           <div id="results" class="result-list"></div>
         </section>
 
@@ -219,7 +222,7 @@
       <button type="button" data-nav-tab="documents">資料</button>
     </nav>
 
-    <script src="js/documents.js?v=core9"></script>
-    <script src="js/app.js?v=core9" type="module"></script>
+    <script src="js/documents.js?v=core10"></script>
+    <script src="js/app.js?v=core10" type="module"></script>
   </body>
 </html>
