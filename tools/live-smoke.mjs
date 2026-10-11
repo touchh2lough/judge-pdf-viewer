@@ -16,7 +16,7 @@ try {
   page.on("pageerror", error => errors.push(error.message));
   page.on("request", request => { if (request.method() === "POST" || request.method() === "PUT") uploads.push(request.url()); });
   await page.goto(url);
-  await page.locator("[data-library-count]").waitFor({ timeout: 60000 });
+  await page.locator("[data-library-count]").waitFor({ state: "attached", timeout: 60000 });
   await page.waitForFunction(() => document.querySelector("[data-official-status]").textContent.includes("最終確認：") && document.querySelector("[data-library-count]").textContent.includes("4資料"), null, { timeout: 120000 });
   const docs = await page.evaluate(async () => {
     const { PdfLibrary } = await import(new URL("js/pdf-library.mjs", location.href));
@@ -27,9 +27,11 @@ try {
   assert.equal(docs.find(item => item.documentId === "penalty-guideline").version, "Ver.1.3");
   assert.equal(docs.filter(item => item.source.kind === "official").length, 4);
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+  await page.locator('[data-nav-tab="documents"]').click();
   await page.locator("[data-sync-official]").click();
   await page.waitForFunction(() => !document.querySelector("[data-sync-official]").disabled);
   assert.match(await page.locator("[data-official-status]").innerText(), /4資料は変更なし/);
+  await page.locator('[data-nav-tab="results"]').click();
   await page.locator("#search-input").fill("シャッフル");
   await page.locator("#search-button").click();
   assert.ok(await page.locator("#results .result-card").count() > 0);

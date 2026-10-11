@@ -77,6 +77,10 @@ async function newsletter(text) {
 try {
   await page.goto("http://127.0.0.1:8793/");
   await waitDocuments(4);
+  assert.equal(await page.locator('#classification-section').isVisible(), true);
+  assert.equal(await page.locator('#library-tools').isVisible(), false);
+  await page.locator('[data-nav-tab="documents"]').click();
+  assert.equal(await page.locator('#classification-section').isVisible(), false);
   await page.locator("[data-official-status]").filter({ hasText: "最終確認" }).waitFor({ timeout: 120000 });
   let docs = await metadata();
   assert.equal(docs.find(item => item.documentId === "ruling-case").version, "Ver.1.5");
@@ -116,6 +120,9 @@ try {
   await page.waitForFunction(() => document.querySelector("#viewer-page-label").textContent.includes("1"));
   console.log("PASS restart, newsletter filter search and PDF render");
   await page.locator("#close-pdf").click();
+  await page.waitForFunction(() => !history.state?.judgePdfOpen);
+  assert.equal(await page.locator('#results-view').isVisible(), true);
+  await page.locator('[data-nav-tab="documents"]').click();
   // Browser-native directory handles can be stored and reopened without reading the OS downloads folder.
   await page.evaluate(async () => {
     const directory = await (await navigator.storage.getDirectory()).getDirectoryHandle("smoke-import", { create: true });
@@ -136,6 +143,35 @@ try {
   await page.screenshot({ path: path.join(root, ".artifacts/mobile.png"), fullPage: true });
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true);
   console.log("PASS mobile layout without horizontal overflow");
+  await page.locator('[data-nav-tab="home"]').click();
+  await page.evaluate(() => scrollTo(0, 0));
+  await page.screenshot({ path: path.join(root, '.artifacts/home-mobile.png'), fullPage: true });
+  assert.equal(await page.locator('#results-view').isVisible(), false);
+  await page.locator('#play-error-cards [data-entry-id]').first().click();
+  await page.locator('#pdf-dialog[open]').waitFor();
+  await page.waitForFunction(() => document.querySelector('#pdf-page-input').max === '25');
+  await page.screenshot({ path: path.join(root, '.artifacts/pdf-mobile.png') });
+  await page.locator('#pdf-page-input').fill('2');
+  await page.locator('#pdf-page-jump button').click();
+  await page.waitForFunction(() => document.querySelector('#pdf-page-label').textContent === '2 / 25ページ');
+  await page.goBack();
+  await page.waitForFunction(() => !document.querySelector('#pdf-dialog').open);
+  assert.equal(await page.locator('#classification-section').isVisible(), true);
+  await page.locator('[data-nav-tab="results"]').click();
+  assert.equal(await page.locator('#results .result-card').count(), 2);
+  await page.locator('#results [data-favorite]').first().click();
+  await page.locator('#action-feedback.is-visible').waitFor();
+  await page.locator('[data-nav-tab="favorites"]').click();
+  assert.ok(await page.locator('#favorites [data-show-source]').count() > 0);
+  console.log('PASS direct screen navigation, page jump, browser Back, retained search and favorite feedback');
+  for (const width of [320, 768, 1200]) {
+    await page.setViewportSize({ width, height: 900 });
+    await page.locator('[data-nav-tab="home"]').click();
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+    const searchBounds = await page.locator('#search-input').boundingBox();
+    assert.ok(searchBounds.width > width * 0.5 || width > 1080);
+  }
+  await page.locator('[data-nav-tab="prep"]').click();
   await page.locator("#prepare-offline").click();
   await page.waitForFunction(() => document.querySelector("#offline-status").textContent === "保存済み", { timeout: 60000 });
   await context.setOffline(true);

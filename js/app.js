@@ -426,7 +426,7 @@ async function loadClassificationData() {
       applyClassificationData(override);
       return;
     }
-    const response = await fetch("data/classifications.json?v=core8", { cache: "no-cache" });
+    const response = await fetch("data/classifications.json?v=core9", { cache: "no-cache" });
     if (!response.ok) throw new Error(`classification json: ${response.status}`);
     applyClassificationData(await response.json());
   } catch (error) {
@@ -717,7 +717,7 @@ function registeredDocuments() {
 
 function renderFilterChips() {
   els.filterChips.innerHTML = filters.map((filter) => `
-    <button class="chip ${filter.id === els.documentFilter.value ? "active" : ""}" type="button" data-filter-chip="${filter.id}">
+    <button class="chip ${filter.id === els.documentFilter.value ? "active" : ""}" type="button" data-filter-chip="${filter.id}" aria-pressed="${filter.id === els.documentFilter.value}">
       ${escapeHtml(filter.label)}
     </button>
   `).join("");
@@ -896,7 +896,7 @@ function renderPdfContext() {
       <strong>${escapeHtml(item.title)}</strong>
     </div>
     ${related.length > 0 ? `
-      <details class="pdf-related" open>
+      <details class="pdf-related">
         <summary>近い原文</summary>
         <div class="pdf-related-links">
           ${related.map((relatedItem) => `
@@ -1039,6 +1039,7 @@ async function openClassificationSource(item, documentId) {
   if (!item) return;
   if (getMissingRequiredDocuments().length > 0) {
     updateSetupState();
+    activateTab("documents");
     els.setupScreen?.scrollIntoView({ behavior: "smooth", block: "start" });
     return;
   }
@@ -1065,11 +1066,11 @@ async function openClassificationSource(item, documentId) {
 function runClassificationSearch(item, mode) {
   if (!item) return;
   if (mode === "penalty") {
-    openClassificationSource(item, "penalty-guideline");
+    queueReader(() => openClassificationSource(item, "penalty-guideline"));
     return;
   }
   if (mode === "cases") {
-    openClassificationSource(item, "ruling-case");
+    queueReader(() => openClassificationSource(item, "ruling-case"));
     return;
   }
 
@@ -1111,8 +1112,8 @@ function searchEntryCases(entry) {
 
 function renderDocuments() {
   els.documents.innerHTML = `
-    <a class="button-link" href="#library-tools">PDFの自動更新・フォルダ取り込み・ジャッジ通信の追加</a>
-    <section class="document-admin-panel">
+
+    <details class="document-admin-panel"><summary>入口設定を変更</summary>
       <div class="section-heading compact">
         <p class="kicker">分類データ</p>
         <h2>入口設定</h2>
@@ -1125,7 +1126,7 @@ function renderDocuments() {
         </label>
         <button type="button" data-reset-classification>標準に戻す</button>
       </div>
-    </section>
+    </details>
     ${documentManagerHtml(false)}
   `;
 }
@@ -1171,7 +1172,7 @@ function documentManagerHtml(setupOnly) {
           <span>${registration ? "PDFを差し替え" : "PDFを登録"}</span>
           <input type="file" accept="application/pdf,.pdf" data-pdf-upload="${doc.id}">
         </label>
-        ${registration ? `<button type="button" data-remove-pdf="${doc.id}">削除</button>` : ""}
+        ${registration ? `<button type="button" class="primary-button" data-open-pdf="${doc.id}" data-page="1">PDFを開く</button><button type="button" data-remove-pdf="${doc.id}">削除</button>` : ""}
       </div>
     </article>
   `;
@@ -1382,7 +1383,7 @@ function resultCard(entry, query, highlightTerms = buildHighlightTerms(query)) {
       <div class="result-actions card-actions">
         <button class="primary-button" type="button" data-show-source="${entry.documentId}" data-page="${entry.page}" data-highlight-terms="${encodedTerms}">該当箇所を表示</button>
         <button type="button" data-favorite="${entry.documentId}" data-page="${entry.page}">お気に入りに追加</button>
-        <button type="button" data-quote-source="${entry.documentId}" data-page="${entry.page}">記録に引用</button>
+
       </div>
     </article>
   `;
@@ -1430,6 +1431,8 @@ function runSearch() {
   const query = els.searchInput.value;
   renderResults(searchSources(query), query);
   activateTab("results");
+  els.searchInput.blur();
+  window.scrollTo({ top: 0 });
 }
 
 function addFavorite(documentId, page) {
@@ -1452,6 +1455,7 @@ function addFavorite(documentId, page) {
   }
   renderFavorites();
   renderPrepChecks();
+  announce(exists ? "このページはお気に入りに登録済みです" : "お気に入りに追加しました");
 }
 
 function renderFavorites() {
@@ -1520,14 +1524,24 @@ async function openPdf(documentId, pageNumber, terms = [], endPage = null) {
   await renderPdfPage(els.pdfCanvas, 1.65);
 }
 
+let readerFocus = null;
+let readerScroll = 0;
 function openPdfView() {
-  els.pdfDialog.setAttribute("open", "");
+  if (els.pdfDialog.open) return;
+  readerFocus = document.activeElement;
+  readerScroll = window.scrollY;
+  els.pdfDialog.showModal();
   document.body.classList.add("pdf-view-active");
+  history.pushState({ ...history.state, judgePdfOpen: true }, "");
 }
 
-function closePdfView() {
-  els.pdfDialog.removeAttribute("open");
+function closePdfView(fromHistory = false) {
+  if (!els.pdfDialog.open) return;
+  els.pdfDialog.close();
   document.body.classList.remove("pdf-view-active");
+  readerFocus?.focus({ preventScroll: true });
+  window.scrollTo(0, readerScroll);
+  if (!fromHistory && history.state?.judgePdfOpen) history.back();
 }
 
 function isCompactViewport() {
@@ -1535,12 +1549,7 @@ function isCompactViewport() {
 }
 
 function getPdfDisplayWidth(viewport) {
-  const sidePanelWidth = window.matchMedia("(min-width: 900px)").matches
-    ? 328
-    : window.matchMedia("(min-width: 620px)").matches
-      ? 272
-      : 0;
-  const availableWidth = Math.max(320, window.innerWidth - sidePanelWidth);
+  const availableWidth = window.innerWidth;
   const dialogWidth = Math.min(els.pdfDialog.clientWidth || availableWidth, availableWidth);
   return Math.min(viewport.width, dialogWidth);
 }
@@ -1662,15 +1671,16 @@ function renderQuickRecent(history = loadJson(storageKeys.history, [])) {
   }).join("");
 }
 
-function openHistoryItem(id) {
+async function openHistoryItem(id) {
   const item = loadJson(storageKeys.history, []).find((historyItem) => historyItem.id === id);
   if (!item) return;
   if (item.entryId) {
     activeEntryId = item.entryId;
-    openEntryDocument(findEntry(item.entryId), item.documentId);
+    await openEntryDocument(findEntry(item.entryId), item.documentId);
     return;
   }
-  showSource(item.documentId, item.page);
+  activeEntryId = "";
+  await showSource(item.documentId, item.page);
 }
 
 function updateHistoryNote(id, value) {
@@ -1852,6 +1862,9 @@ function moveMatch(delta) {
 }
 
 function updatePageControls() {
+  const jump = document.querySelector("#pdf-page-input");
+  jump.value = String(activePage);
+  jump.max = String(activePdf?.numPages || 1);
   const pageLabel = activePdf ? `${activePage} / ${activePdf.numPages}ページ` : "原本ページをここに表示します";
   els.pdfPageLabel.textContent = pageLabel;
   els.viewerPageLabel.textContent = activeDoc ? `${activeDoc.version} / ${pageLabel}` : pageLabel;
@@ -1924,11 +1937,38 @@ function initOfflineStatus() {
   updateOfflineStatus("未保存", "neutral");
 }
 
+const routeScroll = new Map();
+let feedbackTimer;
+function announce(message) {
+  const feedback = document.querySelector("#action-feedback");
+  feedback.textContent = message;
+  feedback.classList.add("is-visible");
+  clearTimeout(feedbackTimer);
+  feedbackTimer = setTimeout(() => feedback.classList.remove("is-visible"), 3000);
+}
+
 function activateTab(id) {
+  const previous = document.body.dataset.route;
+  routeScroll.set(previous, window.scrollY);
+  document.body.dataset.route = id;
   els.tabs.forEach((tab) => tab.classList.toggle("is-active", tab.dataset.tab === id));
   Object.entries(els.views).forEach(([viewId, view]) => {
     view.classList.toggle("is-active", viewId === id);
   });
+  document.querySelectorAll(".bottom-nav button").forEach(button => {
+    if (button.dataset.navTab === id) button.setAttribute("aria-current", "page");
+    else button.removeAttribute("aria-current");
+  });
+  if (previous !== id) window.scrollTo(0, routeScroll.get(id) || 0);
+}
+
+let readerTask = Promise.resolve();
+function queueReader(task) {
+  readerTask = readerTask.then(task).catch(error => {
+    console.error(error);
+    announce("PDFを表示できませんでした。資料の登録状況を確認してください。");
+  });
+  return readerTask;
 }
 
 function handleDelegatedClick(event) {
@@ -1939,7 +1979,7 @@ function handleDelegatedClick(event) {
     const entry = findEntry(target.dataset.entryId);
     activeEntryId = entry?.id || "";
     renderEntryDetail(entry);
-    openEntryDocument(entry, "penalty-guideline");
+    queueReader(() => openEntryDocument(entry, "penalty-guideline"));
   }
 
   if (target.dataset.groupToggle) {
@@ -1953,11 +1993,11 @@ function handleDelegatedClick(event) {
   }
 
   if (target.dataset.entryOpen) {
-    openEntryDocument(findEntry(target.dataset.entryOpen), target.dataset.documentId);
+    queueReader(() => openEntryDocument(findEntry(target.dataset.entryOpen), target.dataset.documentId));
   }
 
   if (target.dataset.floatingCases) {
-    openEntryDocument(findEntry(target.dataset.floatingCases), target.dataset.floatingDocument || "ruling-case");
+    queueReader(() => openEntryDocument(findEntry(target.dataset.floatingCases), target.dataset.floatingDocument || "ruling-case"));
   }
 
   if (target.dataset.entrySearchCases) {
@@ -1984,7 +2024,7 @@ function handleDelegatedClick(event) {
   if (target.dataset.detectedClassificationId) {
     const item = findClassification(target.dataset.detectedClassificationId);
     activeEntryId = "";
-    openClassificationSource(item, "penalty-guideline");
+    queueReader(() => openClassificationSource(item, "penalty-guideline"));
   }
 
   if (target.dataset.filterChip) {
@@ -1994,11 +2034,13 @@ function handleDelegatedClick(event) {
   }
 
   if (target.dataset.openPdf) {
-    openPdf(target.dataset.openPdf, target.dataset.page, parseHighlightTerms(target.dataset.highlightTerms));
+    activeEntryId = "";
+    queueReader(() => openPdf(target.dataset.openPdf, target.dataset.page, parseHighlightTerms(target.dataset.highlightTerms)));
   }
 
   if (target.dataset.showSource) {
-    showSource(target.dataset.showSource, target.dataset.page, parseHighlightTerms(target.dataset.highlightTerms));
+    activeEntryId = "";
+    queueReader(() => showSource(target.dataset.showSource, target.dataset.page, parseHighlightTerms(target.dataset.highlightTerms)));
   }
 
   if (target.dataset.favorite) {
@@ -2018,7 +2060,7 @@ function handleDelegatedClick(event) {
   }
 
   if (target.dataset.historyOpen) {
-    openHistoryItem(target.dataset.historyOpen);
+    queueReader(() => openHistoryItem(target.dataset.historyOpen));
   }
 
   if (target.dataset.removeHistory) {
@@ -2035,9 +2077,7 @@ function handleDelegatedClick(event) {
 
   if (target.dataset.navTab) {
     activateTab(target.dataset.navTab);
-    if (target.dataset.navTab === "results") {
-      document.querySelector("#search-section").scrollIntoView({ behavior: "smooth", block: "start" });
-    }
+    if (target.dataset.navTab === "results") els.searchInput.focus({ preventScroll: true });
   }
 
   if (target.dataset.navSection) {
@@ -2090,7 +2130,7 @@ async function init() {
   });
   els.searchButton.addEventListener("click", runSearch);
   els.searchInput.addEventListener("keydown", (event) => {
-    if (event.key === "Enter") runSearch();
+    if (event.key === "Enter" && !event.isComposing && event.keyCode !== 229) { event.preventDefault(); runSearch(); }
   });
   els.refreshIndex.addEventListener("click", () => queueLibraryTask(() => buildIndex(true)).catch(reportLibraryError));
   els.prepareOffline.addEventListener("click", prepareOffline);
@@ -2107,17 +2147,33 @@ async function init() {
   window.addEventListener("online", initOfflineStatus);
   window.addEventListener("offline", initOfflineStatus);
   els.tabs.forEach((tab) => tab.addEventListener("click", () => activateTab(tab.dataset.tab)));
-  els.closePdf.addEventListener("click", closePdfView);
+  activateTab("home");
+  if (history.state?.judgePdfOpen) history.replaceState({ ...history.state, judgePdfOpen: false }, "");
+  window.addEventListener("popstate", () => closePdfView(true));
+  els.closePdf.addEventListener("click", () => closePdfView());
+  els.pdfDialog.addEventListener("cancel", event => { event.preventDefault(); closePdfView(); });
+  document.querySelector("#pdf-page-jump").addEventListener("submit", event => {
+    event.preventDefault();
+    const input = document.querySelector("#pdf-page-input");
+    const requested = Number(input.value);
+    queueReader(async () => {
+      if (!activePdf || requested < 1 || requested > activePdf.numPages || !Number.isInteger(requested)) return;
+      activePage = requested;
+      activeUnitEndPage = null;
+      await renderPdfPage(els.pdfCanvas, 1.65);
+      addHistoryItem(activeDoc, activePage);
+    });
+  });
   els.presentPdf.addEventListener("click", async () => {
     if (!activePdf) return;
     openPdfView();
     await renderPdfPage(els.pdfCanvas, 1.65);
   });
   els.prevPage.addEventListener("click", async () => {
-    await movePage(-1, els.pdfCanvas, 1.65);
+    await queueReader(() => movePage(-1, els.pdfCanvas, 1.65));
   });
   els.nextPage.addEventListener("click", async () => {
-    await movePage(1, els.pdfCanvas, 1.65);
+    await queueReader(() => movePage(1, els.pdfCanvas, 1.65));
   });
   els.prevMatch.addEventListener("click", () => moveMatch(-1));
   els.nextMatch.addEventListener("click", () => moveMatch(1));

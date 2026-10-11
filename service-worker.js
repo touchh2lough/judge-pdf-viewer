@@ -1,16 +1,16 @@
-const CACHE_NAME = "judge-source-app-core8";
+const CACHE_NAME = "judge-source-app-core9";
 const CORE_ASSETS = [
   "./",
   "./index.html",
   "./manifest.webmanifest",
-  "./css/style.css?v=core8",
-  "./js/app.js?v=core8",
-  "./js/documents.js?v=core8",
+  "./css/style.css?v=core9",
+  "./js/app.js?v=core9",
+  "./js/documents.js?v=core9",
   "./js/pdf-library.mjs",
   "./js/import-policy.mjs",
   "./js/sync-controller.mjs",
   "./js/update-config.mjs",
-  "./data/classifications.json?v=core8",
+  "./data/classifications.json?v=core9",
   "./vendor/pdfjs/pdf.min.mjs",
   "./vendor/pdfjs/pdf.worker.min.mjs"
 ];
