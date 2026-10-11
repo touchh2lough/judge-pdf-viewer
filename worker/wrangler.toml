@@ -1,0 +1,7 @@
+name = "judge-pdf-updates"
+main = "official-updates.mjs"
+compatibility_date = "2026-10-01"
+workers_dev = true
+account_id = "44c9b8e59e18d3e28956f793c5a8f6ed"
+
+# Read-only relay. No KV, R2, D1, secrets, scheduled jobs or PDF storage.

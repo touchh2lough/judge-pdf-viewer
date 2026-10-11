@@ -99,10 +99,19 @@ h2 {
   padding: 16px;
 }
 
-body.setup-required .workspace,
-body.setup-required .bottom-nav {
-  display: none;
-}
+.library-tools { padding: 12px 16px 0; }
+.library-panel { border: 1px solid var(--line); border-radius: 14px; background: #fff; }
+.library-panel summary { padding: 16px; cursor: pointer; font-weight: 800; min-height: 48px; }
+.library-panel summary span { display: inline-block; color: var(--muted); font-size: 13px; margin-left: 8px; }
+.library-sections { display: grid; gap: 16px; padding: 0 16px 16px; }
+.library-sections section { display: grid; gap: 10px; padding-top: 14px; border-top: 1px solid var(--line); min-width: 0; }
+.library-sections p { margin: 0; font-size: 14px; line-height: 1.65; }
+.library-status { color: var(--muted); overflow-wrap: anywhere; }
+.library-check { display: flex; align-items: center; gap: 10px; min-height: 44px; }
+.library-check input { width: 20px; height: 20px; }
+@media (min-width: 900px) { .library-sections { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+
+/* A missing required PDF does not block searching optional documents or newsletters. */
 
 .visually-hidden {
   position: absolute;

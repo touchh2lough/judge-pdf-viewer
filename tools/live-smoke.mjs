@@ -1,0 +1,40 @@
+import assert from "node:assert/strict";
+import path from "node:path";
+import fs from "node:fs/promises";
+import { createRequire } from "node:module";
+const require = createRequire(import.meta.url);
+const packages = process.argv[process.argv.indexOf("--node-modules") + 1];
+const url = process.argv[process.argv.indexOf("--url") + 1];
+const { chromium } = require(path.join(packages, "playwright"));
+const browser = await chromium.launch({ channel: "msedge", headless: true });
+try {
+  const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  const page = await context.newPage();
+  const errors = [];
+  const uploads = [];
+  page.on("pageerror", error => errors.push(error.message));
+  page.on("request", request => { if (request.method() === "POST" || request.method() === "PUT") uploads.push(request.url()); });
+  await page.goto(url);
+  await page.locator("[data-library-count]").waitFor({ timeout: 60000 });
+  await page.waitForFunction(() => document.querySelector("[data-official-status]").textContent.includes("最終確認：") && document.querySelector("[data-library-count]").textContent.includes("4資料"), null, { timeout: 120000 });
+  const docs = await page.evaluate(async () => {
+    const { PdfLibrary } = await import(new URL("js/pdf-library.mjs", location.href));
+    return new PdfLibrary().listDocuments();
+  });
+  assert.equal(docs.length, 4);
+  assert.equal(docs.find(item => item.documentId === "ruling-case").version, "Ver.1.5");
+  assert.equal(docs.find(item => item.documentId === "penalty-guideline").version, "Ver.1.3");
+  assert.equal(docs.filter(item => item.source.kind === "official").length, 4);
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+  await page.locator("[data-sync-official]").click();
+  await page.waitForFunction(() => !document.querySelector("[data-sync-official]").disabled);
+  assert.match(await page.locator("[data-official-status]").innerText(), /4資料は変更なし/);
+  await page.locator("#search-input").fill("シャッフル");
+  await page.locator("#search-button").click();
+  assert.ok(await page.locator("#results .result-card").count() > 0);
+  assert.deepEqual(errors, []);
+  assert.deepEqual(uploads, []);
+  await fs.mkdir(new URL("../.artifacts/", import.meta.url), { recursive: true });
+  await page.screenshot({ path: new URL("../.artifacts/live-mobile.png", import.meta.url).pathname.replace(/^\/(\w:)/, "$1"), fullPage: true });
+  console.log(JSON.stringify({ url, registered: docs.map(item => ({ id: item.documentId, version: item.version, pages: item.pageCount })), status: await page.locator("[data-official-status]").innerText(), browserErrors: errors, uploads }));
+} finally { await browser.close(); }

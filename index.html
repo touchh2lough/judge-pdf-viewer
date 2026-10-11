@@ -6,7 +6,7 @@
     <title>ジャッジ用PDFビューアー</title>
     <meta name="theme-color" content="#006d77">
     <link rel="manifest" href="manifest.webmanifest">
-    <link rel="stylesheet" href="css/style.css?v=core7">
+    <link rel="stylesheet" href="css/style.css?v=core8">
   </head>
   <body>
     <header class="app-header">
@@ -22,6 +22,8 @@
       </div>
     </header>
 
+    <section id="library-tools" class="library-tools" aria-label="PDFの更新と取り込み"></section>
+
     <section id="setup-screen" class="setup-screen" hidden>
       <div class="setup-card">
         <div class="section-heading">
@@ -29,7 +31,7 @@
           <h2>公式PDFを登録してください</h2>
         </div>
         <p class="setup-copy">このアプリは公式PDFを登録して使います。PDFを各自で用意してから登録してください。</p>
-        <p class="setup-copy muted-text">必須資料が登録されるまで、入口タイルからPDFを開けません。</p>
+        <p class="setup-copy muted-text">必須資料を登録すると事象タイルを使えます。登録済みの資料やジャッジ通信は先に検索できます。</p>
         <div id="setup-documents" class="document-list"></div>
       </div>
     </section>
@@ -211,7 +213,7 @@
       <button type="button" data-nav-tab="documents">資料</button>
     </nav>
 
-    <script src="js/documents.js?v=core7"></script>
-    <script src="js/app.js?v=core7" type="module"></script>
+    <script src="js/documents.js?v=core8"></script>
+    <script src="js/app.js?v=core8" type="module"></script>
   </body>
 </html>

@@ -47,6 +47,7 @@ window.JUDGE_DOCUMENTS = [
 
 window.JUDGE_FILTERS = [
   { id: "all", label: "全資料", documentIds: [] },
+  { id: "judge-news", label: "ジャッジ通信", documentIds: [] },
   { id: "advanced-manual", label: "上級プレイヤー用ルールガイド", documentIds: ["advanced-manual"] },
   { id: "floor-rule", label: "競技向けフロアルール", documentIds: ["floor-rule"] },
   { id: "penalty-guideline", label: "ペナルティガイドライン", documentIds: ["penalty-guideline"] },

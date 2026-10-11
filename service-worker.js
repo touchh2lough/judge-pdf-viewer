@@ -1,12 +1,16 @@
-const CACHE_NAME = "judge-source-app-core7";
+const CACHE_NAME = "judge-source-app-core8";
 const CORE_ASSETS = [
   "./",
   "./index.html",
   "./manifest.webmanifest",
-  "./css/style.css?v=core7",
-  "./js/app.js?v=core7",
-  "./js/documents.js?v=core7",
-  "./data/classifications.json?v=core7",
+  "./css/style.css?v=core8",
+  "./js/app.js?v=core8",
+  "./js/documents.js?v=core8",
+  "./js/pdf-library.mjs",
+  "./js/import-policy.mjs",
+  "./js/sync-controller.mjs",
+  "./js/update-config.mjs",
+  "./data/classifications.json?v=core8",
   "./vendor/pdfjs/pdf.min.mjs",
   "./vendor/pdfjs/pdf.worker.min.mjs"
 ];
@@ -35,11 +39,23 @@ self.addEventListener("message", (event) => {
 
 self.addEventListener("fetch", (event) => {
   if (event.request.method !== "GET") return;
+  const url = new URL(event.request.url);
+  // Update checks and relayed PDFs must reach the network; private PDFs live only in IndexedDB.
+  if (url.origin !== self.location.origin || !url.href.startsWith(self.registration.scope)) return;
+  if (event.request.mode === "navigate") {
+    event.respondWith(fetch(event.request).then(async response => {
+      if (response.ok) await (await caches.open(CACHE_NAME)).put(event.request, response.clone());
+      return response;
+    }).catch(async () => (await caches.match(event.request)) || (await caches.match(new URL("index.html", self.registration.scope).href))));
+    return;
+  }
+  if (event.request.cache === "no-store" || event.request.cache === "no-cache") return;
 
   event.respondWith(
     caches.match(event.request).then((cached) => {
       if (cached) return cached;
       return fetch(event.request).then((response) => {
+        if (!response.ok) return response;
         const copy = response.clone();
         caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
         return response;

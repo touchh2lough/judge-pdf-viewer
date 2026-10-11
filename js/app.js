@@ -1,4 +1,7 @@
 import * as pdfjsLib from "../vendor/pdfjs/pdf.min.mjs";
+import { PdfLibrary } from "./pdf-library.mjs";
+import { checkPdfBytes, fingerprint, compactText, PRIMARY_TERMS, parseEdition, isOlderEdition, newsletterDocument, MAX_PDF_BYTES } from "./import-policy.mjs";
+import { initLibraryTools } from "./sync-controller.mjs";
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = new URL("../vendor/pdfjs/pdf.worker.min.mjs", import.meta.url).toString();
 
@@ -264,11 +267,14 @@ const storageKeys = {
   classificationOverride: "judgeClassificationOverride:v1"
 };
 
-const pdfStore = {
-  dbName: "judgePdfStore",
-  dbVersion: 1,
-  storeName: "pdfs"
-};
+const library = new PdfLibrary();
+let registrations = {};
+let libraryQueue = Promise.resolve();
+function queueLibraryTask(task) {
+  const result = libraryQueue.then(task);
+  libraryQueue = result.catch(() => {});
+  return result;
+}
 
 let sourceIndex = [];
 let activePdf = null;
@@ -420,7 +426,7 @@ async function loadClassificationData() {
       applyClassificationData(override);
       return;
     }
-    const response = await fetch("data/classifications.json?v=core7", { cache: "no-cache" });
+    const response = await fetch("data/classifications.json?v=core8", { cache: "no-cache" });
     if (!response.ok) throw new Error(`classification json: ${response.status}`);
     applyClassificationData(await response.json());
   } catch (error) {
@@ -471,66 +477,29 @@ function getFavorites() {
   return loadJson(storageKeys.favorites, []);
 }
 
-function openPdfDb() {
-  return new Promise((resolve, reject) => {
-    const request = indexedDB.open(pdfStore.dbName, pdfStore.dbVersion);
-    request.onupgradeneeded = () => {
-      request.result.createObjectStore(pdfStore.storeName, { keyPath: "documentId" });
-    };
-    request.onsuccess = () => resolve(request.result);
-    request.onerror = () => reject(request.error);
-  });
-}
-
-async function withPdfStore(mode, callback) {
-  const db = await openPdfDb();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(pdfStore.storeName, mode);
-    const store = tx.objectStore(pdfStore.storeName);
-    const result = callback(store);
-    tx.oncomplete = () => {
-      db.close();
-      resolve(result);
-    };
-    tx.onerror = () => {
-      db.close();
-      reject(tx.error);
-    };
-  });
-}
-
 async function getStoredPdfRecord(documentId) {
-  return withPdfStore("readonly", (store) => new Promise((resolve, reject) => {
-    const request = store.get(documentId);
-    request.onsuccess = () => resolve(request.result || null);
-    request.onerror = () => reject(request.error);
-  }));
-}
-
-async function saveStoredPdf(documentId, file, buffer) {
-  return withPdfStore("readwrite", (store) => store.put({
-    documentId,
-    name: file.name,
-    type: file.type || "application/pdf",
-    size: file.size,
-    buffer
-  }));
-}
-
-async function deleteStoredPdf(documentId) {
-  return withPdfStore("readwrite", (store) => store.delete(documentId));
+  return library.getPdf(documentId);
 }
 
 function getRegistrations() {
-  return loadJson(storageKeys.pdfRegistrations, {});
+  return registrations;
 }
 
-function saveRegistrations(registrations) {
-  saveJson(storageKeys.pdfRegistrations, registrations);
+async function reloadRegistrations() {
+  registrations = Object.fromEntries((await library.listDocuments()).map(item => [item.documentId, item]));
+  applyRegistrations();
 }
 
 function applyRegistrations() {
   const registrations = getRegistrations();
+  for (let index = documents.length - 1; index >= 0; index--) {
+    if (documents[index].kind === "judge-news") documents.splice(index, 1);
+  }
+  Object.values(registrations).filter(item => item.kind === "judge-news").forEach(item => {
+    documents.push(newsletterDocument(item.documentId, item.title));
+  });
+  const newsFilter = filters.find(filter => filter.id === "judge-news");
+  if (newsFilter) newsFilter.documentIds = documents.filter(doc => doc.kind === "judge-news").map(doc => doc.id);
   documents.forEach((doc) => {
     const registration = registrations[doc.id];
     doc.registration = registration || null;
@@ -575,17 +544,6 @@ async function loadPdfDocument(source) {
   }
 }
 
-async function readPdfTextSample(pdf) {
-  const pageLimit = Math.min(pdf.numPages, 5);
-  const parts = [];
-  for (let pageNumber = 1; pageNumber <= pageLimit; pageNumber += 1) {
-    const page = await pdf.getPage(pageNumber);
-    const content = await page.getTextContent();
-    parts.push(normalizeText(content.items.map((item) => item.str).join(" ")));
-  }
-  return normalizeText(parts.join(" "));
-}
-
 function validatePdfSample(doc, file, textSample, pageCount) {
   const warnings = [];
   if (!file.name.toLocaleLowerCase("ja-JP").endsWith(".pdf")) {
@@ -605,27 +563,55 @@ function validatePdfSample(doc, file, textSample, pageCount) {
   };
 }
 
-async function inspectPdfFile(doc, file) {
-  const buffer = await file.arrayBuffer();
+async function inspectPdfFile(doc, file, buffer = null) {
+  buffer ||= await file.arrayBuffer();
+  checkPdfBytes(buffer);
   const pdf = await loadPdfDocument({ data: pdfBytesFromBuffer(buffer) });
-  const textSample = await readPdfTextSample(pdf);
-  const validation = validatePdfSample(doc, file, textSample, pdf.numPages);
-  return {
-    buffer,
-    pageCount: pdf.numPages,
-    textSample,
-    validation
-  };
+  try {
+    const pages = [];
+    for (let number = 1; number <= pdf.numPages; number++) {
+      const page = await pdf.getPage(number);
+      const content = await page.getTextContent();
+      pages.push({ page: number, text: normalizeText(content.items.map(item => item.str).join(" ")) });
+      page.cleanup();
+    }
+    const textSample = pages.slice(0, 5).map(page => page.text).join(" ");
+    const validation = validatePdfSample(doc, file, compactText(textSample), pdf.numPages);
+    return { buffer, pages, pageCount: pdf.numPages, textSample, validation, ...parseEdition(textSample) };
+  } finally { await pdf.destroy(); }
 }
 
-async function registerPdf(documentId, file, force = false) {
-  const doc = getDocument(documentId);
-  if (!doc || !file) return;
+function registerPdf(documentId, file, options = {}) {
+  return queueLibraryTask(() => registerPdfInternal(documentId, file, options));
+}
+
+async function registerPdfInternal(documentId, file, options = {}) {
+  if (!file) return { status: "cancelled" };
+  if (typeof options === "boolean") options = { force: options };
+  if (file.size > MAX_PDF_BYTES) throw new Error("PDFは40MB以内のファイルを選んでください。");
+  const buffer = await file.arrayBuffer();
+  checkPdfBytes(buffer);
+  const hash = await fingerprint(buffer);
+  const isNews = documentId === "judge-news";
+  if (isNews || getDocument(documentId)?.kind === "judge-news") {
+    const duplicate = Object.values(registrations).find(item => item.kind === "judge-news" && item.hash === hash);
+    if (duplicate) return { status: "unchanged", documentId: duplicate.documentId };
+  }
+  if (isNews) documentId = `judge-news-${hash}`;
+  const previous = registrations[documentId];
+  const doc = getDocument(documentId) || (isNews ? newsletterDocument(documentId, file.name.replace(/\.pdf$/i, "")) : null);
+  if (!doc) throw new Error("登録先の資料が見つかりません。");
+  if (previous?.hash === hash) return { status: "unchanged", documentId };
   els.indexStatus.textContent = `${doc.shortTitle || doc.title} を確認しています...`;
 
   try {
-    const inspection = await inspectPdfFile(doc, file);
-    if (!inspection.validation.ok && !force) {
+    const inspection = await inspectPdfFile(doc, file, buffer);
+    if (options.automatic) {
+      const primary = PRIMARY_TERMS[documentId] || "ジャッジ通信";
+      if (!compactText(inspection.textSample).includes(primary)) throw new Error("資料名を確認できないため、自動登録を見送りました。手動で内容を確認してください。");
+      if (isOlderEdition(inspection, previous)) throw new Error("登録済みより古い版のため、自動更新を見送りました。");
+    }
+    if (!inspection.validation.ok && !options.force && !options.automatic) {
       const message = [
         `${doc.shortTitle || doc.title} として登録する前に確認してください。`,
         ...inspection.validation.warnings,
@@ -633,14 +619,14 @@ async function registerPdf(documentId, file, force = false) {
       ].join("\n");
       if (!window.confirm(message)) {
         els.indexStatus.textContent = "PDF登録を取り消しました";
-        return;
+        return { status: "cancelled" };
       }
     }
 
-    await saveStoredPdf(documentId, file, inspection.buffer);
-    const registrations = getRegistrations();
-    registrations[documentId] = {
+    const metadata = {
       documentId,
+      kind: doc.kind || "official",
+      title: doc.title,
       fileName: file.name,
       size: file.size,
       pageCount: inspection.pageCount,
@@ -648,39 +634,59 @@ async function registerPdf(documentId, file, force = false) {
       checkStatus: inspection.validation.ok ? "ok" : "warning",
       matchedTerms: inspection.validation.matchedTerms,
       warnings: inspection.validation.warnings,
-      version: "登録PDF"
+      version: inspection.version,
+      pdfUpdatedAt: inspection.pdfUpdatedAt,
+      hash,
+      source: options.source || { kind: "manual" }
     };
-    saveRegistrations(registrations);
-    applyRegistrations();
-    saveJson(storageKeys.index, null);
-    await buildIndex(true);
+    const pages = inspection.pages.map(page => ({
+      ...page, text: page.text || "このページはテキスト抽出できませんでした。PDFページ表示で確認してください。",
+      documentId, documentTitle: doc.title, version: metadata.version,
+      updatedAt: metadata.pdfUpdatedAt || formatDateTime(metadata.registeredAt), sourceFile: file.name
+    }));
+    await library.putDocument({ documentId, name: file.name, type: "application/pdf", size: file.size, buffer }, metadata, pages);
+    await clearActiveDocument(documentId);
+    await reloadRegistrations();
+    await buildIndex(false);
     renderDocuments();
     renderSetupDocuments();
+    renderFiltersPreservingSelection();
     updateSetupState();
+    if (els.searchInput.value.trim()) renderResults(searchSources(els.searchInput.value), els.searchInput.value);
     els.indexStatus.textContent = `${doc.shortTitle || doc.title} を登録しました`;
+    document.dispatchEvent(new Event("library-changed"));
+    return { status: "imported", documentId };
   } catch (error) {
     console.error(error);
     els.indexStatus.textContent = "PDFを登録できませんでした";
     const detail = error?.message || error?.name || String(error);
-    window.alert(`PDFを登録できませんでした。\n${detail}`);
+    if (!options.automatic) window.alert(`PDFを登録できませんでした。\n${detail}`);
+    throw error;
   }
 }
 
-async function removeRegisteredPdf(documentId) {
+function removeRegisteredPdf(documentId) {
+  return queueLibraryTask(() => removeRegisteredPdfInternal(documentId));
+}
+
+async function removeRegisteredPdfInternal(documentId) {
   const doc = getDocument(documentId);
   if (!doc) return;
   if (!window.confirm(`${doc.shortTitle || doc.title} の登録を削除しますか？`)) return;
-  const registrations = getRegistrations();
-  delete registrations[documentId];
-  saveRegistrations(registrations);
-  await deleteStoredPdf(documentId);
-  applyRegistrations();
-  saveJson(storageKeys.index, null);
-  sourceIndex = [];
+  await library.deleteDocument(documentId);
+  await clearActiveDocument(documentId);
+  await reloadRegistrations();
+  await buildIndex(false);
+  saveJson(storageKeys.favorites, getFavorites().filter(item => item.documentId !== documentId));
+  saveJson(storageKeys.history, loadJson(storageKeys.history, []).filter(item => item.documentId !== documentId));
+  renderFavorites();
+  renderHistoryItems();
+  renderFiltersPreservingSelection();
   renderDocuments();
   renderSetupDocuments();
   renderResults([], "");
   updateSetupState();
+  document.dispatchEvent(new Event("library-changed"));
 }
 
 async function getDocumentPdfSource(doc) {
@@ -1105,6 +1111,7 @@ function searchEntryCases(entry) {
 
 function renderDocuments() {
   els.documents.innerHTML = `
+    <a class="button-link" href="#library-tools">PDFの自動更新・フォルダ取り込み・ジャッジ通信の追加</a>
     <section class="document-admin-panel">
       <div class="section-heading compact">
         <p class="kicker">分類データ</p>
@@ -1129,7 +1136,7 @@ function renderSetupDocuments() {
 }
 
 function documentManagerHtml(setupOnly) {
-  const docs = setupOnly ? documents.filter((doc) => doc.required) : documents;
+    const docs = setupOnly ? documents.filter((doc) => doc.required) : documents;
   return docs.map((doc) => {
     const registration = doc.registration;
     const warnings = registration?.warnings || [];
@@ -1140,7 +1147,7 @@ function documentManagerHtml(setupOnly) {
     <article class="document-card ${registration ? "is-registered" : "is-missing"}">
       <div class="document-card-head">
         <div>
-          <p class="kicker">${doc.required ? "必須PDF" : "任意PDF"}</p>
+          <p class="kicker">${doc.kind === "judge-news" ? "ジャッジ限定・端末内保存" : doc.required ? "必須PDF" : "任意PDF"}</p>
           <h2>${escapeHtml(doc.shortTitle || doc.title)}</h2>
         </div>
         <span class="doc-status ${registration ? "is-ok" : ""}">${escapeHtml(statusLabel)}</span>
@@ -1151,6 +1158,8 @@ function documentManagerHtml(setupOnly) {
           <div><dt>ファイル</dt><dd>${escapeHtml(registration.fileName)}</dd></div>
           <div><dt>ページ数</dt><dd>${registration.pageCount || "未確認"}</dd></div>
           <div><dt>登録日</dt><dd>${escapeHtml(formatDateTime(registration.registeredAt))}</dd></div>
+          <div><dt>版</dt><dd>${escapeHtml(registration.version)}${registration.pdfUpdatedAt ? ` / ${escapeHtml(registration.pdfUpdatedAt)}` : ""}</dd></div>
+          <div><dt>取り込み元</dt><dd>${registration.source?.kind === "official" ? "公式サイト" : registration.source?.kind === "folder" ? "選択フォルダ" : "手動登録"}</dd></div>
           <div><dt>確認</dt><dd>${registration.checkStatus === "ok" ? "特徴語を確認済み" : "確認警告あり"}</dd></div>
         </dl>
         ${warnings.length > 0 ? `<div class="document-warning">${warnings.map(escapeHtml).join("<br>")}</div>` : ""}
@@ -1199,7 +1208,7 @@ function renderPrepChecks() {
   if (!els.prepChecks) return;
 
   const preparedAt = localStorage.getItem(storageKeys.offlinePreparedAt);
-  const cachedIndex = loadJson(storageKeys.index, []);
+  const cachedIndex = sourceIndex;
   const favoriteCount = getFavorites().length;
   const serviceWorkerReady = "serviceWorker" in navigator && isServiceWorkerAllowed();
   const documentCount = registeredDocuments().length;
@@ -1221,64 +1230,68 @@ function renderPrepChecks() {
 async function extractDocument(doc) {
   const pdf = await loadPdfDocument(await getDocumentPdfSource(doc));
   const pages = [];
+  try {
+    for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber += 1) {
+      const page = await pdf.getPage(pageNumber);
+      const content = await page.getTextContent();
+      const text = normalizeText(content.items.map((item) => item.str).join(" "));
+      pages.push({
+        documentId: doc.id,
+        documentTitle: doc.title,
+        version: doc.version,
+        updatedAt: doc.updatedAt,
+        page: pageNumber,
+        text: text || "このページはテキスト抽出できませんでした。PDFページ表示で確認してください。",
+        sourceFile: doc.fileName
+      });
+      page.cleanup();
+    }
+    return pages;
+  } finally { await pdf.destroy(); }
+}
 
-  for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber += 1) {
-    const page = await pdf.getPage(pageNumber);
-    const content = await page.getTextContent();
-    const text = normalizeText(content.items.map((item) => item.str).join(" "));
-    pages.push({
-      documentId: doc.id,
-      documentTitle: doc.title,
-      version: doc.version,
-      updatedAt: doc.updatedAt,
-      page: pageNumber,
-      text: text || "このページはテキスト抽出できませんでした。PDFページ表示で確認してください。",
-      sourceFile: doc.fileName
-    });
-  }
-
-  return pages;
+async function clearActiveDocument(documentId) {
+  if (activeDoc?.id !== documentId) return;
+  closePdfView();
+  const oldPdf = activePdf;
+  activePdf = null;
+  activeDoc = null;
+  if (activeObjectUrl) URL.revokeObjectURL(activeObjectUrl);
+  activeObjectUrl = "";
+  els.openNativePdf.href = "#";
+  els.viewerCanvas.getContext("2d").clearRect(0, 0, els.viewerCanvas.width, els.viewerCanvas.height);
+  els.viewerEmpty.hidden = false;
+  els.viewerTitle.textContent = "検索結果からページを選択";
+  els.viewerPageLabel.textContent = "資料を更新しました。ページを選び直してください";
+  els.presentPdf.disabled = els.viewerPrevPage.disabled = els.viewerNextPage.disabled = true;
+  if (oldPdf) await oldPdf.destroy();
 }
 
 async function buildIndex(force = false) {
   applyRegistrations();
   const availableDocuments = registeredDocuments();
-  if (getMissingRequiredDocuments().length > 0) {
-    sourceIndex = [];
-    detectedClassificationItems = [];
-    els.indexStatus.textContent = "必須PDFを登録してください";
-    renderDetectedClassificationCards();
-    updateSetupState();
-    return;
-  }
-
-  const cached = loadJson(storageKeys.index, null);
-  if (cached && !force) {
-    sourceIndex = cached;
-    detectAdditionalClassificationsFromIndex();
-    renderClassificationCards();
-    els.indexStatus.textContent = `PDF原文 ${sourceIndex.length} ページを読み込み済み`;
-    return;
-  }
-
-  sourceIndex = [];
-  els.indexStatus.textContent = "PDFから原文を抽出しています...";
-
+  const nextIndex = [];
   for (const doc of availableDocuments) {
-    els.indexStatus.textContent = `${doc.title} を読み込み中...`;
-    const pages = await extractDocument(doc);
-    sourceIndex.push(...pages);
+    const cached = force ? null : await library.getIndex(doc.id);
+    let pages = cached?.hash === doc.registration.hash && cached?.pages?.length ? cached.pages : null;
+    if (!pages) {
+      els.indexStatus.textContent = `${doc.title} を読み込み中...`;
+      pages = await extractDocument(doc);
+      await library.putIndex(doc.id, doc.registration.hash, pages);
+    }
+    nextIndex.push(...pages);
   }
-
-  saveJson(storageKeys.index, sourceIndex);
+  sourceIndex = nextIndex;
   detectAdditionalClassificationsFromIndex();
   renderClassificationCards();
-  els.indexStatus.textContent = `PDF原文 ${sourceIndex.length} ページを保存しました`;
+  els.indexStatus.textContent = sourceIndex.length ? `PDF原文 ${sourceIndex.length} ページを読み込み済み` : "PDFを登録してください";
   renderPrepChecks();
 }
 
 function getActiveDocumentIds() {
   const filter = filters.find((item) => item.id === els.documentFilter.value);
+  // An empty newsletter collection must not match all official documents.
+  if (filter?.id === "judge-news" && !filter.documentIds.length) return ["no-judge-news-registered"];
   return filter?.documentIds || [];
 }
 
@@ -1536,8 +1549,10 @@ async function setActivePdf(documentId, pageNumber, endPage = null) {
   const doc = getDocument(documentId);
   if (!doc) return;
   activeDoc = doc;
-  activePdf = await loadPdfDocument(await getDocumentPdfSource(doc));
-  activePage = Number(pageNumber);
+  const nextPdf = await loadPdfDocument(await getDocumentPdfSource(doc));
+  if (activePdf) await activePdf.destroy();
+  activePdf = nextPdf;
+  activePage = Math.max(1, Math.min(activePdf.numPages, Number(pageNumber) || 1));
   activeUnitEndPage = endPage ? Math.max(activePage, Number(endPage)) : null;
   els.pdfTitle.textContent = doc.title;
   if (activeObjectUrl) URL.revokeObjectURL(activeObjectUrl);
@@ -1618,6 +1633,13 @@ function renderHistoryItems() {
     </article>
   `;
   }).join("");
+}
+
+function renderFiltersPreservingSelection() {
+  const selected = els.documentFilter.value;
+  renderFilters();
+  els.documentFilter.value = filters.some(filter => filter.id === selected) ? selected : "all";
+  renderFilterChips();
 }
 
 function renderQuickRecent(history = loadJson(storageKeys.history, [])) {
@@ -1863,7 +1885,7 @@ async function prepareOffline() {
   updateOfflineStatus("保存中", "neutral");
 
   try {
-    await buildIndex(true);
+    await queueLibraryTask(() => buildIndex(false));
     if ("serviceWorker" in navigator && isServiceWorkerAllowed()) {
       const registration = await navigator.serviceWorker.register("service-worker.js");
       await navigator.serviceWorker.ready;
@@ -2004,7 +2026,7 @@ function handleDelegatedClick(event) {
   }
 
   if (target.dataset.removePdf) {
-    removeRegisteredPdf(target.dataset.removePdf);
+    removeRegisteredPdf(target.dataset.removePdf).catch(reportLibraryError);
   }
 
   if (target.dataset.resetClassification !== undefined) {
@@ -2024,7 +2046,10 @@ function handleDelegatedClick(event) {
 }
 
 async function init() {
-  applyRegistrations();
+  await library.migrate(loadJson(storageKeys.pdfRegistrations, {}), loadJson(storageKeys.index, []));
+  await reloadRegistrations();
+  localStorage.removeItem(storageKeys.index);
+  localStorage.removeItem(storageKeys.pdfRegistrations);
   await loadClassificationData();
   renderFilters();
   renderShortcuts();
@@ -2047,6 +2072,7 @@ async function init() {
       const file = event.target.files?.[0];
       event.target.disabled = true;
       registerPdf(event.target.dataset.pdfUpload, file)
+        .catch(reportLibraryError)
         .finally(() => {
           event.target.disabled = false;
           event.target.value = "";
@@ -2066,7 +2092,7 @@ async function init() {
   els.searchInput.addEventListener("keydown", (event) => {
     if (event.key === "Enter") runSearch();
   });
-  els.refreshIndex.addEventListener("click", () => buildIndex(true));
+  els.refreshIndex.addEventListener("click", () => queueLibraryTask(() => buildIndex(true)).catch(reportLibraryError));
   els.prepareOffline.addEventListener("click", prepareOffline);
   if (els.toggleShortcuts) {
     els.toggleShortcuts.addEventListener("click", () => {
@@ -2115,6 +2141,10 @@ async function init() {
   }
 
   initOfflineStatus();
+  await initLibraryTools({
+    library, getRegistrations, importPdf: registerPdf,
+    isReading: () => document.body.classList.contains("pdf-view-active")
+  });
 
   if ("serviceWorker" in navigator && isServiceWorkerAllowed()) {
     navigator.serviceWorker.register("service-worker.js").catch((error) => {
@@ -2123,4 +2153,9 @@ async function init() {
   }
 }
 
-init();
+function reportLibraryError(error) {
+  console.error(error);
+  els.indexStatus.textContent = error.message || "資料を処理できませんでした。";
+}
+
+init().catch(reportLibraryError);
