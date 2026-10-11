@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import fs from "node:fs/promises";
 import { createRequire } from "node:module";
+import { fileURLToPath } from "node:url";
 const require = createRequire(import.meta.url);
 const packages = process.argv[process.argv.indexOf("--node-modules") + 1];
 const url = process.argv[process.argv.indexOf("--url") + 1];
@@ -35,6 +36,6 @@ try {
   assert.deepEqual(errors, []);
   assert.deepEqual(uploads, []);
   await fs.mkdir(new URL("../.artifacts/", import.meta.url), { recursive: true });
-  await page.screenshot({ path: new URL("../.artifacts/live-mobile.png", import.meta.url).pathname.replace(/^\/(\w:)/, "$1"), fullPage: true });
+  await page.screenshot({ path: fileURLToPath(new URL("../.artifacts/live-mobile.png", import.meta.url)), fullPage: true });
   console.log(JSON.stringify({ url, registered: docs.map(item => ({ id: item.documentId, version: item.version, pages: item.pageCount })), status: await page.locator("[data-official-status]").innerText(), browserErrors: errors, uploads }));
 } finally { await browser.close(); }
